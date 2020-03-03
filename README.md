@@ -12,17 +12,18 @@ All data sets come from [http://football-data.co.uk/data.php](http://football-da
 More info about data in attached file <i>Notes about data.txt</i>
 
 ## Dependencies
-* python 3.7
-* pandas
-* numpy
-* matplotlib
-* scikit-learn 
-* xgboost
+* Python 3.7
+* Pandas
+* Numpy
+* Matplotlib
+* Scikit-learn
+* Scipy
+* Xgboost
 * CatBoost
-* Tensorflow 2.0
+* TensorFlow 2.0 GPU Version
 
 ## Action plan
-After data cleaning and features enginearing build a several ensembling models using the best simple classifiers of each type.
+After data cleaning and features engineering build a several ensembling models using the best simple classifiers of each type.
 
 ## Scope of work
 * 1 Data preprocessing - stage 1
@@ -37,3 +38,4 @@ After data cleaning and features enginearing build a several ensembling models u
 
 ## Final results
 ![Screenshot](final_results.png)
+The best machine learning models achieved just over 71% accuracy: StackClassifier and averaging version of Neural Network (AveragingANN)
