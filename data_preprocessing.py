@@ -1,15 +1,17 @@
-# import nessesary libraries
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import os
 from scipy.stats import pearsonr
-from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.metrics import accuracy_score, log_loss
 from sklearn.model_selection import ParameterSampler
 
-# some preprocessing functions have been converted or directly useds from https://github.com/RudrakshTuwani/Football-Data-Analysis-and-Prediction
+                    
+''' data preprocessing - stage 1 '''
+
+# some preprocessing functions in stage 1 have been converted or directly useds from 
+# https://github.com/RudrakshTuwani/Football-Data-Analysis-and-Prediction
 def read_datasets(dir_path, usecols, datacols):
     ''' read each datasets from dir and put everything on the list '''
     datasets = []
@@ -451,6 +453,9 @@ def concat_datasets(datasets):
     return new_dataset
 
 
+
+''' data preprocessing - stage 2 '''
+
 def numeric_to_categorical(dataset, col, bins):
     ''' replace numeric to categorical feature and put its in new column'''
     #set up bins
@@ -549,53 +554,9 @@ def calculate_and_show_correlation_bins(dataset, target, bins_set, feature_name)
     return np.array(results_set)
 
 
-class DataFrameSelector(BaseEstimator, TransformerMixin):
-    ''' select columns from dataframe and return numpy array '''
-    def __init__(self, attribute_names):
-        self.attribute_names = attribute_names
-    
-    def fit(self, X, y=None):
-        return self
-    
-    def transform(self, X, y=None):
-        return np.array(X[self.attribute_names])
 
+''' data preprocessing - stage 3 '''
 
-class TwoColumnScaler(BaseEstimator, TransformerMixin):
-    ''' take two columns and scaling it's keeping original ratio between them '''
-    def __init__(self, scaler):
-        self.scaler = scaler
-        
-    def fit(self, X, y=None):
-        columns_merged = np.concatenate((X[:,0], X[:,1]), axis=0)
-        self.scaler.fit(columns_merged.reshape(-1,1))
-        return self
-    
-    def transform(self, X, y=None):
-        X1 = self.scaler.transform(X[:, 0].reshape(-1,1))
-        X2 = self.scaler.transform(X[:, 1].reshape(-1,1))
-        X_new = np.concatenate((X1, X2), axis=1)
-        return X_new
-
-  
-class DictionaryEncoder(BaseEstimator, TransformerMixin):
-    ''' encoding labels using dictionary '''
-    def __init__(self, dictionary):
-        self.dictionary = dictionary
-    def fit(self, X, y=None):
-        return self
-    def transform(self, X, y=None):
-        return X.replace(self.dictionary).values
-    
-
-class ToDataFrame(BaseEstimator, TransformerMixin):
-    ''' transform numpy array to dataframe '''
-    def fit(self, X, y=None):
-        return self
-    def transform(self, X, y=None):
-        return pd.DataFrame(X)
-
-    
 # Source: https://maxhalford.github.io/blog/target-encoding-done-the-right-way/
 def calc_smooth_mean(df1, df2, df3, cat_name, target, weight=10):
     ''' function return smoothing target mean encoding '''
@@ -616,11 +577,72 @@ def calc_smooth_mean(df1, df2, df3, cat_name, target, weight=10):
         return df1.loc[cat_name].map(smooth)
     else:
         return df1[cat_name].map(smooth), df2[cat_name].map(smooth.to_dict()), df3[cat_name].map(smooth.to_dict())
+
+
+
+''' data preprocessing - stage 4 '''    
+ 
+def calculate_base_metrics(clf, X_train, y_train, X_valid, y_valid):
+    '''function calculate accuracy and log loss for training and validation sets'''
+    base_acc_train = accuracy_score(y_train, clf.predict(X_train))
+    base_acc_valid = accuracy_score(y_valid, clf.predict(X_valid))
+    base_log_loss_train = log_loss(y_train, clf.predict_proba(X_train)[:,1])
+    base_log_loss_valid = log_loss(y_valid, clf.predict_proba(X_valid)[:,1])
+    return base_acc_train, base_acc_valid, base_log_loss_train, base_log_loss_valid
+
+
+def show_base_metrics(clf, base_acc_train, base_acc_valid, base_log_loss_train, base_log_loss_valid):
+    ''' function printing accuracy and log loss score for training and validation sets '''
+    print(f'Base test for {clf.__class__.__name__}')
+    print(f'Accuracy score on train set: {base_acc_train.round(2)}')
+    print(f'Accuracy score on valid set: {base_acc_valid.round(2)}')
+    print(f'Base log loss result on train set: {base_log_loss_train.round(2)}')
+    print(f'Base log loss result on valid set: {base_log_loss_valid.round(2)}')    
+
     
+def show_diff_after_shuffling(diff_acc_results, diff_log_loss_results, columns):
+    ''' function show difference between acc and log loss after shuffling each feature'''
+
+    # calculate scaling ratio to transform diff_acc_results and diff_log_loss_results to the same scale
+    ratio = np.max( np.abs(diff_acc_results) ) / np.max(np.abs( diff_log_loss_results) )
+
+    # plot differences
+    plt.figure(figsize=(12.5,12.5))
+    plt.barh(columns, diff_acc_results, label='accuracy')
+    plt.barh(columns, diff_log_loss_results*ratio, label='log loss')
+    plt.legend()
+    plt.show()    
+
+
+def show_acc_log_loss_difference(base_acc_train, base_acc_valid, base_log_loss_train, base_log_loss_valid,
+                                reduced_acc_train, reduced_acc_valid, reduced_log_loss_train, reduced_log_loss_valid):
+    ''' function show difference in accuracy and log loss between training and validation sets'''
+
+    # create lists of result and labels as argumets to charts
+    labels_acc = ['training accuracy', 'validation accuracy']
+    labels_log_loss = ['training log loss', 'validation log loss']
+    base_dataset_acc = [base_acc_train, base_acc_valid]
+    base_dataset_log_loss = [base_log_loss_train, base_log_loss_valid]
+    reduced_dataset_acc = [reduced_acc_train, reduced_acc_valid]
+    reduced_dataset_log_loss = [reduced_log_loss_train, reduced_log_loss_valid]
+
+    # create subplot and show results
+    fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2, figsize=(10,5))
+
+    ax1.bar(labels_acc, base_dataset_acc, label='base dataset', width=0.2, align='edge')
+    ax1.bar(labels_acc, reduced_dataset_acc, label='reduced dataset', width=-0.2, align='edge')
+    ax1.legend()
+
+    ax2.bar(labels_log_loss, base_dataset_log_loss, label='base dataset', width=0.2, align='edge')
+    ax2.bar(labels_log_loss, reduced_dataset_log_loss, label='reduced dataset', width=-0.2, align='edge')
+    ax2.legend()
+    plt.show()
+
 
 def plot_feature_importances(model, labels):
     ''' plot feature importance for passing model '''
     n_features = len(labels)
+    plt.figure(figsize=(10, 10))
     if hasattr(model, 'feature_importances_'):
         plt.barh(range(n_features), model.feature_importances_, align='center')
     else:
@@ -629,8 +651,9 @@ def plot_feature_importances(model, labels):
     plt.xlabel("Feature importance")
     plt.ylabel("Feature")
     plt.ylim(-1, n_features)
-    
+    plt.show()
 
+    
 def feature_reduction(model, X, y, base_acc, base_log_loss):
     ''' reduce number of features using perturbation techinque'''
     
@@ -647,11 +670,12 @@ def feature_reduction(model, X, y, base_acc, base_log_loss):
         diff_acc = curr_acc - base_acc
         diff_acc_results.append(diff_acc)
 
-        curr_log_loss = log_loss( y, model.predict(X) )
+        curr_log_loss = log_loss( y, model.predict_proba(X)[:,1] )
         diff_log_loss = curr_log_loss - base_log_loss
         diff_log_loss_results.append(diff_log_loss)
-
-        if diff_acc < 0 and diff_log_loss > 0:
+        
+        # if diff_acc < 0 and diff_log_loss > 0:
+        if diff_log_loss > 0:
             best_features_idx.append(i)
 
         X.iloc[:, i] = hold
@@ -659,78 +683,36 @@ def feature_reduction(model, X, y, base_acc, base_log_loss):
     return np.array(best_features_idx), np.array(diff_acc_results), np.array(diff_log_loss_results)
 
 
-def feature_reduction_for_pipeline(model, X, y):
-    ''' reduce number of features using perturbation techinque'''
-
-    model.fit(X,y)
-    
-    base_acc = accuracy_score(y, model.predict(X))
-    base_log_loss= log_loss(y, model.predict(X))
+def feature_reduction_deep_learning(model, X, y, base_acc, base_log_loss, kind='rnn'):
+    ''' reduce number of features using perturbation techinque for deep learning models'''
     
     best_features_idx = []
+    diff_acc_results = []
+    diff_log_loss_results = []
+
+    size = X.shape[1] if kind =='ann' else X.shape[2]
     
-    for i in range(X.shape[1]):
-
+    for i in range(size):
+        
         hold = X.copy()
-        np.random.shuffle(X[:, i])
-
+        
+        if kind == 'ann':
+            np.random.shuffle(X[:, i])
+        else:
+            np.random.shuffle(X[:, :, i])
+        
         curr_acc = accuracy_score( y, model.predict(X) )
         diff_acc = curr_acc - base_acc
+        diff_acc_results.append(diff_acc)
 
-        curr_log_loss = log_loss( y, model.predict(X) )
+        curr_log_loss = log_loss( y, model.predict_proba(X)[:,1] ) 
         diff_log_loss = curr_log_loss - base_log_loss
+        diff_log_loss_results.append(diff_log_loss)
 
-        if diff_acc < 0 and diff_log_loss > 0:
+        # if diff_acc < 0 and diff_log_loss > 0:
+        if diff_log_loss > 0:
             best_features_idx.append(i)
 
         X = hold
     
-    return np.array(best_features_idx)
-
-
-class ImportantFeaturesSelector(BaseEstimator, TransformerMixin):
-    ''' select most important features from numpy array'''
-    def __init__(self, model):
-        self.model = model
-    
-    def fit(self, X, y=None):
-        self.important_features = feature_reduction_for_pipeline(self.model, X, y)
-        return self
-    
-    def transform(self, X, y=None):
-        return X[:, self.important_features]
-    
-
-def target_mean_encoding(df, cat_name, target, weight=10):
-    ''' function return smoothing target mean encoding '''
-
-    # Compute the global mean
-    mean = df[target].mean()
-
-    # Compute the number of values and the mean of each group
-    agg = df.groupby(cat_name)[target].agg(['count', 'mean'])
-
-    counts = agg['count']
-    means = agg['mean']
-
-    # Compute the "smoothed" means
-    smooth = (counts * means + weight * mean) / (counts + weight)
-
-    return smooth
-
-
-class TargetMeanEncodingTransformer(BaseEstimator, TransformerMixin):
-    ''' transform feature using target mean encoding'''
-    def __init__(self, X, cat_name, target):
-        self.cat_name = cat_name
-        self.target = target
-        self.X = X
-        self.target_dict = target_mean_encoding(self.X, self.cat_name, self.target)
-
-    def fit(self, X, y=None):
-        return self
-    
-    def transform(self, X, y=None):
-        X_new = X.copy()
-        X_new[self.cat_name] = X_new[self.cat_name].map(self.target_dict)
-        return np.array(X_new[self.cat_name]).reshape(-1,1)
+    return np.array(best_features_idx), np.array(diff_acc_results), np.array(diff_log_loss_results)
